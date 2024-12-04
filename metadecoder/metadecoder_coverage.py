@@ -6,14 +6,18 @@ from re import compile
 
 import numpy
 from .make_file import make_file
-from .sam_utility import generate_block, read_sam_file, read_sam_header
+from .sam_utility import generate_block, read_sam_file, read_sam_header, read_bam_file, read_bam_header
 
 
 def get_coverage(input_file, block_start, block_end, output_file, bin_size, mapq, aligned_threshold):
     template = compile('(\d+)(\D)')
     sequence2bin_coverages = dict()
     regions = list()
-    for _, sequence_id, position, cigar in read_sam_file(input_file, block_start, block_end, mapq):
+    if input_file.endswith('.bam'):
+        read_alignment_function = read_bam_file
+    else:
+        read_alignment_function = read_sam_file
+    for _, sequence_id, position, cigar in read_alignment_function(input_file, block_start, block_end, mapq):
         bin_index = ceil(position / bin_size)
         # Determine the valid read. #
         aligned_length = 0  # Number of matches and mismatches. #
@@ -54,8 +58,12 @@ def main(parameters):
     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), '->', 'Reading header sections from all sam files.', flush = True)
     sequence_struct = dict()
     for sam_file in parameters.sam:
-        for sequence, sequence_length in read_sam_header(sam_file):
-            sequence_struct[(sequence, sequence_length)] = sequence_struct.get((sequence, sequence_length), 0) + 1
+        if sam_file.endswith('.bam'):
+            for sequence, sequence_length in read_bam_header(sam_file):
+                sequence_struct[(sequence, sequence_length)] = sequence_struct.get((sequence, sequence_length), 0) + 1
+        else:
+            for sequence, sequence_length in read_sam_header(sam_file):
+                sequence_struct[(sequence, sequence_length)] = sequence_struct.get((sequence, sequence_length), 0) + 1
     for (sequence, sequence_length), pairs in sequence_struct.items():
         assert pairs == sam_files, f"All sam files should have the same header, but sequence \"{sequence}\" is not present in all files."
 
